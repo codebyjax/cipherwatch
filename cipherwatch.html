@@ -1,0 +1,658 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CipherWatch — Visibility into Encrypted Threats</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg0: #060d14;
+  --bg1: #0a1520;
+  --bg2: #0f1e2e;
+  --bg3: #162436;
+  --bg4: #1c2f42;
+  --border: rgba(0,200,255,0.1);
+  --border2: rgba(0,200,255,0.2);
+  --cyan: #00c8ff;
+  --cyan-dim: rgba(0,200,255,0.6);
+  --cyan-glow: rgba(0,200,255,0.08);
+  --green: #00ff88;
+  --green-dim: rgba(0,255,136,0.7);
+  --amber: #ffb800;
+  --red: #ff4444;
+  --purple: #a855f7;
+  --text-primary: #c8dff0;
+  --text-secondary: #5a8aaa;
+  --text-dim: #2a4a5a;
+  --mono: 'JetBrains Mono', monospace;
+  --sans: 'IBM Plex Sans', sans-serif;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; }
+body { background: var(--bg0); font-family: var(--sans); color: var(--text-primary); overflow: hidden; }
+body::before {
+  content: '';
+  position: fixed; inset: 0;
+  background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.025) 2px, rgba(0,0,0,0.025) 4px);
+  pointer-events: none; z-index: 9999;
+}
+
+/* TOP BAR */
+.topbar {
+  background: var(--bg1);
+  border-bottom: 1px solid var(--border);
+  padding: 0 20px;
+  height: 46px;
+  display: flex; align-items: center; gap: 16px;
+  flex-shrink: 0;
+}
+.logo { display: flex; align-items: center; gap: 8px; }
+.logo-mark {
+  width: 26px; height: 26px;
+  border: 1.5px solid var(--cyan);
+  border-radius: 6px;
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 0 8px rgba(0,200,255,0.15);
+  position: relative;
+}
+.logo-eye-outer {
+  width: 12px; height: 7px;
+  border: 1.5px solid var(--cyan);
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+}
+.logo-eye-inner { width: 4px; height: 4px; background: var(--cyan); border-radius: 50%; }
+.logo-name { font-family: var(--mono); font-size: 13px; font-weight: 700; color: #fff; }
+.logo-name span { color: var(--cyan); }
+.topbar-sep { width: 1px; height: 20px; background: var(--border); flex-shrink: 0; }
+.topbar-stat { font-family: var(--mono); font-size: 10px; color: var(--text-secondary); white-space: nowrap; }
+.topbar-stat b { color: var(--cyan); font-weight: 500; }
+.topbar-right { margin-left: auto; display: flex; align-items: center; gap: 14px; }
+.status-pill {
+  font-family: var(--mono); font-size: 9px;
+  padding: 3px 9px; border-radius: 20px;
+  border: 1px solid rgba(0,255,136,0.3);
+  color: var(--green); background: rgba(0,255,136,0.05);
+  display: flex; align-items: center; gap: 5px; white-space: nowrap;
+}
+.status-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--green); animation: pulse-green 2s infinite; }
+@keyframes pulse-green { 0%,100%{opacity:1} 50%{opacity:0.4} }
+.clock { font-family: var(--mono); font-size: 10px; color: var(--text-secondary); }
+
+/* LAYOUT */
+.app { display: flex; flex-direction: column; height: 100vh; }
+.layout { display: grid; grid-template-columns: 320px 1fr; flex: 1; overflow: hidden; }
+
+/* LEFT PANEL */
+.left-panel { border-right: 1px solid var(--border); display: flex; flex-direction: column; overflow: hidden; background: var(--bg1); }
+.panel-header {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: space-between;
+  flex-shrink: 0;
+}
+.panel-title { font-family: var(--mono); font-size: 9px; color: var(--cyan); letter-spacing: 0.14em; }
+.alert-count { font-family: var(--mono); font-size: 9px; color: var(--text-dim); }
+.alert-count .c { color: var(--red); }
+.alert-count .h { color: var(--amber); }
+.alert-filters {
+  padding: 7px 14px;
+  border-bottom: 1px solid var(--border);
+  display: flex; gap: 5px; flex-shrink: 0;
+}
+.filter-btn {
+  font-family: var(--mono); font-size: 8px; padding: 3px 7px;
+  border-radius: 3px; border: 1px solid var(--border);
+  color: var(--text-secondary); background: transparent; cursor: pointer;
+  transition: all 0.15s; letter-spacing: 0.08em;
+}
+.filter-btn:hover, .filter-btn.active { border-color: var(--cyan); color: var(--cyan); background: var(--cyan-glow); }
+.alert-list { flex: 1; overflow-y: auto; }
+.alert-list::-webkit-scrollbar { width: 2px; }
+.alert-list::-webkit-scrollbar-thumb { background: var(--border2); }
+.alert-item {
+  padding: 11px 14px;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer; transition: background 0.12s;
+  position: relative;
+}
+.alert-item::before {
+  content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
+}
+.alert-item.sev-critical::before { background: var(--red); box-shadow: 0 0 6px var(--red); }
+.alert-item.sev-high::before { background: var(--amber); }
+.alert-item.sev-medium::before { background: var(--cyan); }
+.alert-item:hover { background: var(--bg2); }
+.alert-item.selected { background: var(--bg3); }
+.alert-item-top { display: flex; align-items: center; gap: 7px; margin-bottom: 4px; }
+.sev-badge {
+  font-family: var(--mono); font-size: 7px; font-weight: 700;
+  padding: 2px 5px; border-radius: 2px; letter-spacing: 0.08em; flex-shrink: 0;
+}
+.sev-badge.critical { background: rgba(255,68,68,0.12); color: var(--red); border: 1px solid rgba(255,68,68,0.28); }
+.sev-badge.high { background: rgba(255,184,0,0.1); color: var(--amber); border: 1px solid rgba(255,184,0,0.28); }
+.sev-badge.medium { background: rgba(0,200,255,0.07); color: var(--cyan); border: 1px solid rgba(0,200,255,0.2); }
+.alert-name { font-family: var(--mono); font-size: 10px; color: var(--text-primary); font-weight: 500; line-height: 1.3; }
+.alert-meta { font-family: var(--mono); font-size: 8px; color: var(--text-secondary); display: flex; gap: 8px; margin-bottom: 4px; flex-wrap: wrap; }
+.alert-tags { display: flex; gap: 3px; flex-wrap: wrap; }
+.mitre-tag {
+  font-family: var(--mono); font-size: 7px; padding: 1px 4px;
+  border-radius: 2px; color: var(--purple); background: rgba(168,85,247,0.07);
+  border: 1px solid rgba(168,85,247,0.18);
+}
+.score-tag {
+  font-family: var(--mono); font-size: 7px; padding: 1px 4px;
+  border-radius: 2px; color: var(--cyan-dim); background: var(--cyan-glow);
+  border: 1px solid var(--border2);
+}
+
+/* RIGHT PANEL */
+.right-panel { display: flex; flex-direction: column; overflow: hidden; background: var(--bg0); }
+.detail-header {
+  padding: 12px 20px; border-bottom: 1px solid var(--border);
+  background: var(--bg1); display: flex; align-items: flex-start; justify-content: space-between;
+  flex-shrink: 0; gap: 12px;
+}
+.detail-title-row { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+.detail-title { font-family: var(--mono); font-size: 13px; color: #fff; font-weight: 500; }
+.detail-sub { font-family: var(--mono); font-size: 9px; color: var(--text-secondary); }
+.detail-actions { display: flex; gap: 6px; flex-shrink: 0; }
+.action-btn {
+  font-family: var(--mono); font-size: 8px; padding: 5px 10px;
+  border-radius: 3px; border: 1px solid var(--border2); color: var(--cyan);
+  background: var(--cyan-glow); cursor: pointer; letter-spacing: 0.06em; transition: all 0.12s; white-space: nowrap;
+}
+.action-btn:hover { background: rgba(0,200,255,0.15); }
+.action-btn.danger { color: var(--red); border-color: rgba(255,68,68,0.28); background: rgba(255,68,68,0.05); }
+.action-btn.danger:hover { background: rgba(255,68,68,0.12); }
+
+.detail-body { flex: 1; overflow-y: auto; padding: 16px 20px; display: flex; flex-direction: column; gap: 14px; }
+.detail-body::-webkit-scrollbar { width: 2px; }
+.detail-body::-webkit-scrollbar-thumb { background: var(--border2); }
+
+.section-head {
+  font-family: var(--mono); font-size: 8px; color: var(--cyan);
+  letter-spacing: 0.16em; text-transform: uppercase;
+  display: flex; align-items: center; gap: 8px; margin-bottom: 8px;
+}
+.section-head::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+
+.field-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.field-box {
+  background: var(--bg2); border: 1px solid var(--border);
+  border-radius: 4px; padding: 9px 11px;
+}
+.field-label { font-family: var(--mono); font-size: 8px; color: var(--text-dim); letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 4px; }
+.field-val { font-family: var(--mono); font-size: 11px; color: var(--text-primary); }
+.field-val.red { color: var(--red); }
+.field-val.amber { color: var(--amber); }
+.field-val.cyan { color: var(--cyan); }
+.field-val.green { color: #00ff88; }
+
+.net-flow { background: var(--bg2); border: 1px solid var(--border); border-radius: 4px; padding: 12px 14px; }
+.net-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; font-family: var(--mono); }
+.net-row:last-child { margin-bottom: 0; }
+.net-label { font-size: 8px; color: var(--text-dim); width: 80px; flex-shrink: 0; letter-spacing: 0.08em; }
+.net-val { font-size: 10px; color: var(--text-primary); flex: 1; }
+.net-flag { font-size: 7px; padding: 1px 5px; border-radius: 2px; flex-shrink: 0; }
+.net-flag.bad { background: rgba(255,68,68,0.1); color: var(--red); border: 1px solid rgba(255,68,68,0.25); }
+.net-flag.warn { background: rgba(255,184,0,0.1); color: var(--amber); border: 1px solid rgba(255,184,0,0.25); }
+.net-flag.ok { background: rgba(0,255,136,0.05); color: rgba(0,255,136,0.7); border: 1px solid rgba(0,255,136,0.18); }
+
+/* AI PANEL */
+.ai-panel { background: var(--bg1); border: 1px solid rgba(0,200,255,0.14); border-radius: 4px; overflow: hidden; }
+.ai-header {
+  padding: 9px 13px; border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: 9px;
+  background: rgba(0,200,255,0.03);
+}
+.ai-icon { font-family: var(--mono); font-size: 12px; color: var(--cyan); }
+.ai-title { font-family: var(--mono); font-size: 9px; color: var(--cyan); letter-spacing: 0.1em; }
+.ai-status { margin-left: auto; font-family: var(--mono); font-size: 8px; color: var(--text-dim); }
+.ai-status.thinking { color: var(--amber); animation: blink 0.9s infinite; }
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+.ai-body { padding: 13px; }
+.ai-start-btn {
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  padding: 14px; border: 1px dashed rgba(0,200,255,0.18); border-radius: 4px;
+  cursor: pointer; font-family: var(--mono); font-size: 10px;
+  color: var(--text-secondary); background: transparent; transition: all 0.2s; width: 100%;
+}
+.ai-start-btn:hover { border-color: var(--cyan); color: var(--cyan); background: var(--cyan-glow); }
+.ai-steps { display: flex; flex-direction: column; }
+.ai-step {
+  display: flex; gap: 11px; padding: 9px 0;
+  border-bottom: 1px solid rgba(0,200,255,0.05);
+  opacity: 0; transform: translateY(5px);
+  transition: opacity 0.45s, transform 0.45s;
+}
+.ai-step.visible { opacity: 1; transform: translateY(0); }
+.ai-step:last-child { border-bottom: none; }
+.ai-step-num { font-family: var(--mono); font-size: 8px; color: var(--text-dim); width: 18px; flex-shrink: 0; padding-top: 2px; }
+.ai-step-label { font-family: var(--mono); font-size: 8px; color: var(--cyan); margin-bottom: 4px; letter-spacing: 0.08em; }
+.ai-step-text { font-family: var(--sans); font-size: 11px; color: var(--text-secondary); line-height: 1.6; }
+.ai-step-text b { color: var(--text-primary); font-weight: 500; }
+.hl { color: var(--amber); font-family: var(--mono); font-size: 10px; }
+.fl-r { color: var(--red); font-family: var(--mono); font-size: 10px; }
+.fl-g { color: rgba(0,255,136,0.7); font-family: var(--mono); font-size: 10px; }
+
+.ai-verdict {
+  margin-top: 10px; padding: 11px 13px; border-radius: 4px;
+  opacity: 0; transition: opacity 0.5s;
+}
+.ai-verdict.visible { opacity: 1; }
+.ai-verdict.malicious { background: rgba(255,68,68,0.06); border: 1px solid rgba(255,68,68,0.22); }
+.ai-verdict.suspicious { background: rgba(255,184,0,0.05); border: 1px solid rgba(255,184,0,0.18); }
+.ai-verdict.benign { background: rgba(0,255,136,0.04); border: 1px solid rgba(0,255,136,0.14); }
+.verdict-label { font-family: var(--mono); font-size: 8px; letter-spacing: 0.12em; margin-bottom: 6px; }
+.verdict-label.malicious { color: var(--red); }
+.verdict-label.suspicious { color: var(--amber); }
+.verdict-label.benign { color: rgba(0,255,136,0.7); }
+.verdict-text { font-family: var(--sans); font-size: 11px; color: var(--text-secondary); line-height: 1.6; margin-bottom: 10px; }
+.verdict-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+.verdict-action {
+  font-family: var(--mono); font-size: 8px; padding: 4px 9px;
+  border-radius: 2px; letter-spacing: 0.06em; cursor: pointer;
+}
+.verdict-action.red { background: rgba(255,68,68,0.1); color: var(--red); border: 1px solid rgba(255,68,68,0.28); }
+.verdict-action.amber { background: rgba(255,184,0,0.08); color: var(--amber); border: 1px solid rgba(255,184,0,0.28); }
+.verdict-action.cyan { background: var(--cyan-glow); color: var(--cyan); border: 1px solid var(--border2); }
+
+/* EMPTY STATE */
+.empty-state {
+  flex: 1; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 10px;
+}
+.empty-big { font-family: var(--mono); font-size: 28px; color: var(--text-dim); opacity: 0.4; }
+.empty-text { font-family: var(--mono); font-size: 10px; color: var(--text-dim); letter-spacing: 0.1em; }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="topbar">
+    <div class="logo">
+      <div class="logo-mark"><div class="logo-eye-outer"><div class="logo-eye-inner"></div></div></div>
+      <div class="logo-name">Cipher<span>Watch</span></div>
+    </div>
+    <div class="topbar-sep"></div>
+    <div class="topbar-stat">SENSOR <b>so-sensor-01</b></div>
+    <div class="topbar-sep"></div>
+    <div class="topbar-stat">NODE <b>172.16.0.5</b></div>
+    <div class="topbar-sep"></div>
+    <div class="topbar-stat">FRAMEWORK <b>ZTA · AI-IDS · ETA</b></div>
+    <div class="topbar-right">
+      <div class="status-pill"><div class="status-dot"></div>ENGINE ACTIVE</div>
+      <div class="clock" id="clock">--:--:-- UTC</div>
+    </div>
+  </div>
+
+  <div class="layout">
+    <div class="left-panel">
+      <div class="panel-header">
+        <div class="panel-title">// alert queue</div>
+        <div class="alert-count"><span class="c">2 CRIT</span> &nbsp;·&nbsp; <span class="h">3 HIGH</span> &nbsp;·&nbsp; 2 MED</div>
+      </div>
+      <div class="alert-filters">
+        <button class="filter-btn active" onclick="filterAlerts('all',this)">ALL</button>
+        <button class="filter-btn" onclick="filterAlerts('critical',this)">CRITICAL</button>
+        <button class="filter-btn" onclick="filterAlerts('high',this)">HIGH</button>
+        <button class="filter-btn" onclick="filterAlerts('medium',this)">MEDIUM</button>
+      </div>
+      <div class="alert-list" id="alert-list"></div>
+    </div>
+
+    <div class="right-panel" id="right-panel">
+      <div class="empty-state">
+        <div class="empty-big">◎</div>
+        <div class="empty-text">SELECT AN ALERT TO INVESTIGATE</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const alerts = [
+  {
+    id:'CW-2024-0441', sev:'critical',
+    name:'Beaconing over TLS — known C2 JA3 hash',
+    ts:'2024-01-15 03:47:22',
+    src_ip:'10.14.22.87', dst_ip:'185.220.101.47', dst_port:'443',
+    protocol:'TLS 1.2', bytes:'2.4 MB', duration:'00:18:34',
+    ja3:'e7d705a3286e19ea42f587b344ee6865', ja3s:'842d3c5f6a904ee49c8e64d2c9b23528',
+    cert_cn:'update-check.systems', cert_issuer:"Let's Encrypt (cert age: 7 days)",
+    cert_san:'1 domain', user:'jsmith (domain\\jsmith)',
+    device:'WKSTN-114 — Win10 22H2', device_status:'Managed / Compliant',
+    layer:'ETA + AI-IDS + ZTA', mitre:['T1071.001','T1573.002','T1132'], score:97,
+    verdict:'malicious',
+    steps:[
+      {label:'ZTA CONTEXT CHECK', text:'User <b>jsmith</b> is MFA-authenticated on a compliant managed device — identity is valid. However this session was initiated at <span class="hl">03:47 UTC</span>, outside this account\'s established baseline (08:00–18:00 local). ZTA flags an off-hours access anomaly. Micro-segmentation policy permits this host to reach port 443 externally, so the session was not blocked at the perimeter layer.'},
+      {label:'JA3 FINGERPRINT ANALYSIS', text:'TLS client hello fingerprint <span class="fl-r">e7d705a3286e19ea42f587b344ee6865</span> matches a known Cobalt Strike beacon profile across three threat intel feeds (ThreatFox, abuse.ch, Emerging Threats). This fingerprint is not produced by any browser or approved application in our software inventory. The cipher suite ordering and extension list are a direct match for CS default configuration.'},
+      {label:'CERTIFICATE INSPECTION', text:'Destination certificate CN=<b>update-check.systems</b> was issued <span class="fl-r">7 days ago</span> by Let\'s Encrypt. Domain was registered 9 days ago via a privacy-protected registrar. Short-lived cert on a newly-registered domain with a generic name designed to blend in with legitimate update traffic is a strong indicator of adversary-controlled infrastructure.'},
+      {label:'BEHAVIORAL PATTERN (AI-IDS)', text:'AI-IDS detected a <b>beaconing pattern</b> — connection attempts at near-regular intervals of <span class="hl">300 ± 12 seconds</span> over 18 minutes. Jitter of ~4% is consistent with Cobalt Strike\'s default sleep jitter configuration. Data volume (2.4MB) with small consistent outbound packets followed by larger inbound bursts matches C2 tasking behavior — commands out, results in.'},
+      {label:'THREAT INTEL CORRELATION', text:'Destination IP <span class="fl-r">185.220.101.47</span> appears on 3 active blocklists including Feodo Tracker. Geolocation: Romania — not in this organisation\'s expected traffic profile. IP was last flagged 48 hours ago as active C2 infrastructure attributed to a ransomware affiliate group. No prior legitimate traffic to this IP in 90-day PDNS history.'},
+    ],
+    verdictText:'High-confidence active C2 session. The combination of a known-malicious JA3 fingerprint, newly-registered destination domain with a deceptive name, statistically confirmed beaconing interval, and threat-intel-confirmed IP provides overwhelming evidence of an active Cobalt Strike beacon. Immediate containment required.',
+    verdictActions:[{label:'ISOLATE WKSTN-114',cls:'red'},{label:'BLOCK IP + DOMAIN',cls:'red'},{label:'ESCALATE TO IR',cls:'amber'},{label:'COLLECT MEMORY DUMP',cls:'cyan'}]
+  },
+  {
+    id:'CW-2024-0440', sev:'critical',
+    name:'Encrypted exfil — 847MB outbound to unknown host',
+    ts:'2024-01-15 02:11:05',
+    src_ip:'10.14.31.200', dst_ip:'91.109.4.22', dst_port:'8443',
+    protocol:'TLS 1.3', bytes:'847 MB', duration:'01:04:18',
+    ja3:'a0e9f5d64349fb13191bc781f81f42e1', ja3s:'394h2991dff7293e30d4b4e82c3c3201',
+    cert_cn:'cdn-relay.fastdel.io', cert_issuer:'ZeroSSL (cert age: 14 days)',
+    cert_san:'3 domains', user:'svc_backup (service account)',
+    device:'SRV-BACKUP-02 — Server 2019', device_status:'Managed / Compliant',
+    layer:'ETA + AI-IDS', mitre:['T1048.002','T1041','T1567'], score:94,
+    verdict:'malicious',
+    steps:[
+      {label:'ZTA CONTEXT CHECK', text:'Source is service account <b>svc_backup</b> on <b>SRV-BACKUP-02</b>. ZTA policy explicitly prohibits service accounts from initiating outbound TLS connections to non-corporate hosts — this is a <span class="fl-r">direct policy violation</span>. Service accounts operate under strict least-privilege rules; this connection should never have occurred under normal circumstances.'},
+      {label:'VOLUME ANOMALY (AI-IDS)', text:'Outbound transfer of <span class="fl-r">847 MB</span> to an external host on port 8443. AI-IDS flagged this as <span class="fl-r">3,200× above baseline</span> for this host (30-day avg: 260 KB/day outbound). Anomaly score: <span class="fl-r">94/100</span>. Transfer was rate-limited to ~220 KB/s — deliberate throttling to avoid triggering simple volume-based thresholds. The attacker was aware of monitoring.'},
+      {label:'FLOW STATISTICS (ETA)', text:'Flow analysis shows a 94:6 send/receive ratio — predominantly outbound. TLS record sizes are large and consistent, characteristic of bulk data staging rather than interactive traffic. Critically, <b>no DNS query preceded this connection</b> — the destination IP was accessed directly, bypassing DNS-based monitoring controls.'},
+      {label:'CERTIFICATE INSPECTION', text:'Cert CN=<b>cdn-relay.fastdel.io</b> issued 14 days ago by ZeroSSL. Domain fastdel.io has no verifiable presence as a legitimate CDN. Passive DNS shows this domain resolved to <span class="fl-r">14 different IPs</span> in the past 30 days — fast-flux infrastructure commonly used by threat actors to evade IP blocklisting.'},
+      {label:'EXFILTRATION ASSESSMENT', text:'All indicators are consistent with <b>encrypted data exfiltration</b> using a tool such as Rclone or a custom staging binary. The pattern of service account compromise, direct-IP connection, rate-limited bulk transfer to fast-flux infrastructure is a well-documented exfiltration tradecraft pattern. The data source is SRV-BACKUP-02 — which contains backup archives of production systems.'},
+    ],
+    verdictText:'Critical data exfiltration in progress or recently completed. 847MB transferred to confirmed adversary infrastructure via a compromised service account. The backup server contains archives of production databases and file servers — the potential scope of data loss is significant. Immediate forensic acquisition required.',
+    verdictActions:[{label:'ISOLATE SRV-BACKUP-02',cls:'red'},{label:'RESET SVC CREDENTIALS',cls:'red'},{label:'PRESERVE DISK IMAGE',cls:'amber'},{label:'NOTIFY DPO / LEGAL',cls:'amber'}]
+  },
+  {
+    id:'CW-2024-0438', sev:'high',
+    name:'Deprecated TLS 1.1 negotiation — unrecognised JA3',
+    ts:'2024-01-15 01:33:44',
+    src_ip:'10.14.18.44', dst_ip:'104.21.78.192', dst_port:'443',
+    protocol:'TLS 1.1', bytes:'128 KB', duration:'00:02:11',
+    ja3:'c35b0e183d6de1b3e2745a31cd30179a', ja3s:'a002e23e8e4b45a2b7e06abcde1a9822',
+    cert_cn:'analytics-svc.io', cert_issuer:'DigiCert (cert age: 90 days)',
+    cert_san:'12 domains', user:'mlopez (domain\\mlopez)',
+    device:'WKSTN-088 — Win10 21H2', device_status:'Managed / 12 Patches Pending',
+    layer:'ETA + ZTA', mitre:['T1573.001','T1040'], score:71,
+    verdict:'suspicious',
+    steps:[
+      {label:'ZTA CONTEXT CHECK', text:'User <b>mlopez</b> is authenticated within normal hours. Device <b>WKSTN-088</b> is managed but has <span class="hl">12 pending security patches</span> — including 2 rated Critical (CVE-2023-36025, CVE-2023-44487). ZTA flags this as an elevated-risk device. Under a stricter ZTA posture, this device would be quarantined to a limited-access network segment until patched.'},
+      {label:'PROTOCOL ANOMALY (ETA)', text:'Connection negotiated <span class="fl-r">TLS 1.1</span> — deprecated by RFC 8996 and disabled by policy on all managed endpoints since Q2 2023. Standard Chrome, Edge, and Firefox on this OS will not offer TLS 1.1 in their client hello. The initiating process is almost certainly not a standard browser — likely a third-party application or tool with a custom TLS implementation.'},
+      {label:'JA3 FINGERPRINT ANALYSIS', text:'JA3 <span class="hl">c35b0e183d6de1b3e2745a31cd30179a</span> does not appear in our approved application fingerprint allowlist, nor is it attributed to known malware in public threat intel feeds. The cipher suite includes weak ciphers (RC4, 3DES) not offered by any modern, standards-compliant TLS library — this fingerprint suggests an old or deliberately weakened TLS stack.'},
+      {label:'CERTIFICATE INSPECTION', text:'Destination cert covers <b>12 domains</b> via SAN — consistent with CDN or shared hosting infrastructure. Certificate age (90 days) and issuer (DigiCert) are unremarkable. Domain analytics-svc.io has a 2-year passive DNS history — not newly registered. The destination itself is not inherently suspicious; the concern is the client-side TLS behaviour.'},
+      {label:'BEHAVIORAL PATTERN', text:'Short session (2m11s, 128KB) with normal send/receive ratio. No beaconing pattern detected. AI-IDS anomaly score is <span class="hl">71/100</span> — elevated primarily by the deprecated TLS version and unrecognised JA3, not by volume or pattern anomalies. This could be a legacy application, a misconfigured script, or deliberate TLS downgrade. The unpatched device raises the stakes.'},
+    ],
+    verdictText:'Suspicious but not confirmed malicious. A non-standard application using deprecated TLS 1.1 with weak ciphers on a patch-non-compliant device. Primary action: identify the initiating process on WKSTN-088. Secondary: enforce the pending patches to reduce attack surface.',
+    verdictActions:[{label:'QUERY PROCESS LIST',cls:'amber'},{label:'REVIEW INSTALLED APPS',cls:'amber'},{label:'ESCALATE PATCH PRIORITY',cls:'cyan'},{label:'MONITOR FOR RECURRENCE',cls:'cyan'}]
+  },
+  {
+    id:'CW-2024-0437', sev:'high',
+    name:'Lateral movement — internal TLS, self-signed cert',
+    ts:'2024-01-14 23:58:01',
+    src_ip:'10.14.22.87', dst_ip:'10.14.50.12', dst_port:'8443',
+    protocol:'TLS 1.3', bytes:'44 KB', duration:'00:00:22',
+    ja3:'e7d705a3286e19ea42f587b344ee6865', ja3s:'3b5074b1b5d032e5620f69f9f4e1ead4',
+    cert_cn:'SELF-SIGNED', cert_issuer:'SELF-SIGNED (no chain)',
+    cert_san:'—', user:'jsmith (domain\\jsmith)',
+    device:'WKSTN-114 — Win10 22H2', device_status:'Managed / Compliant',
+    layer:'ETA + ZTA + AI-IDS', mitre:['T1021','T1570','T1210'], score:88,
+    verdict:'malicious',
+    steps:[
+      {label:'ZTA CONTEXT CHECK + LINK', text:'Source <b>WKSTN-114</b> (jsmith) — this is the same host as alert <span class="fl-r">CW-2024-0441</span> (active C2 beacon). ZTA micro-segmentation policy does not permit WKSTN-114 to initiate connections to <b>10.14.50.12</b> (SRV-FILE-03). This is a policy violation. The timing — 53 minutes after the C2 beacon was first detected — is consistent with an attacker pivoting internally after establishing persistence.'},
+      {label:'JA3 FINGERPRINT MATCH', text:'JA3 hash <span class="fl-r">e7d705a3286e19ea42f587b344ee6865</span> is <b>identical</b> to the external C2 session in CW-2024-0441. The same process — likely the Cobalt Strike beacon — is initiating this internal TLS session. The attacker is using their existing implant to perform lateral movement, not deploying a separate tool.'},
+      {label:'CERTIFICATE INSPECTION', text:'Destination 10.14.50.12:8443 presented a <span class="fl-r">self-signed certificate</span> with no Subject Alternative Names and no chain to any trusted CA. Self-signed certificates on internal servers are prohibited by policy and are not present on any IT-managed service. This listener was not deployed by IT — it is attacker-controlled infrastructure running on SRV-FILE-03.'},
+      {label:'TIMELINE CORRELATION (AI-IDS)', text:'This session occurred <span class="hl">53 minutes</span> after the initial C2 beacon (CW-2024-0441) and <span class="hl">13 minutes</span> before the exfiltration alert (CW-2024-0440). AI-IDS has automatically correlated these three alerts into a single incident chain: <b>Initial Access → C2 → Lateral Movement → Exfil</b>. The attacker moved through the network rapidly.'},
+      {label:'LATERAL MOVEMENT ASSESSMENT', text:'The short session (22s, 44KB) is characteristic of initial reconnaissance or tool staging — the attacker checking what is accessible on the file server, or uploading a secondary tool. SRV-FILE-03 hosts finance and HR file shares. If the attacker gained access to this server, they had access to sensitive business data prior to the exfiltration event.'},
+    ],
+    verdictText:'Confirmed lateral movement from compromised WKSTN-114 to SRV-FILE-03, using the same Cobalt Strike implant identified in CW-2024-0441. This is part of a multi-stage incident. SRV-FILE-03 must be treated as compromised and isolated immediately. All three alerts should be merged into a single IR case.',
+    verdictActions:[{label:'ISOLATE SRV-FILE-03',cls:'red'},{label:'LINK TO IR CASE',cls:'red'},{label:'ENUMERATE FILE ACCESS LOGS',cls:'amber'},{label:'COLLECT NETFLOW',cls:'cyan'}]
+  },
+  {
+    id:'CW-2024-0435', sev:'high',
+    name:'Impossible travel — concurrent VPN auth, two geolocations',
+    ts:'2024-01-14 22:14:30',
+    src_ip:'77.88.55.66 / 198.41.0.4', dst_ip:'vpn-gw.corp', dst_port:'443',
+    protocol:'TLS 1.3', bytes:'12 KB', duration:'00:00:08',
+    ja3:'Standard browser JA3 (Chrome)', ja3s:'—',
+    cert_cn:'vpn-gw.corp', cert_issuer:'Internal CA (valid, 180d remaining)',
+    cert_san:'2 domains', user:'agarcia (domain\\agarcia)',
+    device:'BYOD — Unmanaged (second session)', device_status:'Unmanaged / Posture Unknown',
+    layer:'ZTA + AI-IDS', mitre:['T1078','T1133','T1621'], score:83,
+    verdict:'suspicious',
+    steps:[
+      {label:'ZTA IDENTITY — IMPOSSIBLE TRAVEL', text:'<b>agarcia</b> authenticated successfully from <span class="fl-r">77.88.55.66</span> (Moscow, Russia) at 22:10 UTC. A second successful authentication from <span class="hl">198.41.0.4</span> (San Antonio, TX) occurred at 22:14 UTC — a <span class="fl-r">4-minute gap</span>. Physical travel between these geolocations requires ~12 hours minimum. Both sessions passed MFA, which requires explanation.'},
+      {label:'MFA ASSESSMENT', text:'Both sessions completed TOTP-based MFA challenges. Possible explanations: (1) the user completed both challenges — physically impossible given the geography; (2) an adversary captured and replayed an MFA token within the 30-second TOTP window — technically feasible with an AiTM phishing proxy; (3) the authenticator app itself is compromised. AI-IDS flags this as a <span class="hl">probable AiTM phishing or token theft scenario</span>.'},
+      {label:'DEVICE POSTURE (ZTA)', text:'The Russia-origin session used a <span class="fl-r">device not enrolled in MDM</span> — no certificate, no EDR, no patch status available. Under ZTA posture evaluation, this session should have been restricted to a minimum-access network tier. The TX session originates from a BYOD device also lacking full compliance. Neither session has the full trust context of a managed endpoint.'},
+      {label:'SESSION BEHAVIOR (AI-IDS)', text:'The Russia-origin session (8 minutes active) accessed <b>HR and Finance shared drives</b> — resources outside agarcia\'s normal access pattern (baseline: Engineering resources only). This anomalous resource access, combined with the impossible travel, strongly suggests the foreign session is an unauthorised actor who has obtained the user\'s credentials and MFA capability.'},
+      {label:'CONCURRENT SESSION RISK', text:'Both sessions are currently <b>active simultaneously</b>. The TX session may be the legitimate user — terminating both sessions risks locking out the genuine employee. Recommended approach: terminate the Russia session via session revocation (not just password reset, which won\'t kill active tokens), then contact agarcia directly out-of-band (phone, not email) to verify before any further action.'},
+    ],
+    verdictText:'Probable account compromise via AiTM phishing or credential theft with MFA bypass. The Russia-origin session with anomalous resource access is very likely unauthorised. Contact agarcia immediately via out-of-band channel to confirm the TX session is legitimate before full lockout. Preserve both session logs.',
+    verdictActions:[{label:'REVOKE RU SESSION TOKEN',cls:'red'},{label:'CONTACT USER OOB',cls:'amber'},{label:'FORCE RE-AUTH ALL SESSIONS',cls:'amber'},{label:'REVIEW ACCESSED FILES',cls:'cyan'}]
+  },
+  {
+    id:'CW-2024-0433', sev:'medium',
+    name:'Internal TLS cert expired — monitoring service',
+    ts:'2024-01-14 20:45:12',
+    src_ip:'10.14.10.5', dst_ip:'10.14.60.21', dst_port:'443',
+    protocol:'TLS 1.3', bytes:'890 KB', duration:'00:08:44',
+    ja3:'Standard curl/libcurl JA3', ja3s:'Internal API server JA3',
+    cert_cn:'api-internal.corp', cert_issuer:'Internal CA (expired 3 days ago)',
+    cert_san:'1 domain', user:'svc_monitor (service account)',
+    device:'SRV-MON-01 — Ubuntu 22.04', device_status:'Managed / Compliant',
+    layer:'ETA', mitre:['T1040'], score:42,
+    verdict:'benign',
+    steps:[
+      {label:'ZTA CONTEXT CHECK', text:'Service account <b>svc_monitor</b> on monitoring server <b>SRV-MON-01</b> — this is an approved service account with documented access to internal API endpoints. Session timing and source host match the expected monitoring schedule. ZTA context: <span class="fl-g">LOW RISK</span>. Identity and access are within policy.'},
+      {label:'CERTIFICATE ANOMALY (ETA)', text:'ETA flagged this session because the certificate for <b>api-internal.corp</b> expired <span class="hl">3 days ago</span>. The monitoring agent (curl-based) is accepting the expired certificate without error — this indicates that cert validation has been disabled in the monitoring script (likely via <span class="hl">-k / --insecure</span> flag or equivalent). This is a security hygiene issue, not a threat indicator.'},
+      {label:'JA3 FINGERPRINT ANALYSIS', text:'JA3 fingerprint matches <span class="fl-g">standard curl/libcurl</span> — consistent with the documented monitoring agent. Cipher suite selection is modern and standards-compliant. JA3S (server fingerprint) matches the internal API server\'s historical baseline across 90 days of sessions. No fingerprint anomaly.'},
+      {label:'BEHAVIORAL PATTERN', text:'Traffic volume (890KB over 8m44s) and flow pattern are fully consistent with normal API health-check polling. AI-IDS anomaly score: <span class="fl-g">42/100</span>. The alert was triggered solely by the expired certificate condition detected by ETA — not by any behavioral, volumetric, or destination anomaly. This is the system working as designed.'},
+      {label:'ROOT CAUSE', text:'Routine certificate expiry on internal service <b>api-internal.corp</b> (10.14.60.21). This is a certificate management failure, not a security incident. The residual risk: disabled cert validation in the monitoring script creates a MITM-vulnerable path on the internal network — an insider or network-adjacent attacker could intercept monitoring traffic without triggering an alert.'},
+    ],
+    verdictText:'Benign — expired internal certificate on a monitored service. The monitoring agent is operating normally but accepting an expired cert due to a misconfiguration in the script. Low immediate risk given the internal network path and verified ZTA identity. Recommend certificate renewal and restoring cert validation.',
+    verdictActions:[{label:'RENEW CERT — api-internal.corp',cls:'cyan'},{label:'ENABLE CERT VALIDATION',cls:'cyan'},{label:'CLOSE — FALSE POSITIVE',cls:'cyan'}]
+  },
+  {
+    id:'CW-2024-0431', sev:'medium',
+    name:'First-seen TLS destination — SharePoint subdomain',
+    ts:'2024-01-14 19:22:50',
+    src_ip:'10.14.25.99', dst_ip:'52.84.166.200', dst_port:'443',
+    protocol:'TLS 1.3', bytes:'3.2 MB', duration:'00:04:30',
+    ja3:'Standard Chrome browser JA3', ja3s:'Cloudflare edge JA3',
+    cert_cn:'*.sharepoint.com', cert_issuer:'Microsoft RSA TLS CA 02',
+    cert_san:'8 domains (all Microsoft)', user:'tchen (domain\\tchen)',
+    device:'WKSTN-201 — Win11 23H2', device_status:'Managed / Fully Patched',
+    layer:'ETA', mitre:[], score:18,
+    verdict:'benign',
+    steps:[
+      {label:'ZTA CONTEXT CHECK', text:'User <b>tchen</b> is authenticated within normal hours. Device <b>WKSTN-201</b> is fully managed, enrolled, and <span class="fl-g">fully patched</span> — the highest-trust device posture in our environment. ZTA context: <span class="fl-g">FULLY VERIFIED</span>. No access policy violations. Identity and device are both clean.'},
+      {label:'JA3 FINGERPRINT ANALYSIS', text:'JA3 fingerprint matches <span class="fl-g">standard Chrome browser</span> — one of the most frequently observed fingerprints across the environment. JA3S matches Cloudflare edge infrastructure, which is the CDN used by Microsoft 365 for SharePoint content delivery. Both fingerprints are fully expected for this traffic type.'},
+      {label:'CERTIFICATE INSPECTION', text:'Certificate CN=<b>*.sharepoint.com</b> issued by <b>Microsoft RSA TLS CA 02</b> — a trusted CA in our approved root store. All 8 SANs resolve to Microsoft 365 domains. Certificate age, issuer, and SAN configuration are completely standard. Destination IP 52.84.166.200 is a documented Microsoft/Cloudflare CDN IP range.'},
+      {label:'WHY THIS ALERT FIRED', text:'ETA flagged this session because <b>WKSTN-201 had not previously connected to this specific SharePoint subdomain</b> in our 90-day traffic history. First-seen-domain heuristics are low-fidelity by design — they cast a wide net and produce noise, but occasionally catch cases where legitimate-looking infrastructure is used for data exfiltration (e.g. exfil to attacker-controlled SharePoint tenant). In this case, all indicators are clean.'},
+      {label:'BEHAVIORAL PATTERN', text:'3.2MB download over 4.5 minutes — entirely consistent with a SharePoint file download in Microsoft 365. AI-IDS anomaly score: <span class="fl-g">18/100</span>. No anomalies in volume, timing, flow ratio, or session characteristics. This is normal business activity from a fully-verified user on a fully-trusted device.'},
+    ],
+    verdictText:'Benign — legitimate Microsoft SharePoint access from a verified, compliant user. Alert fired on a first-seen-domain heuristic. All TLS signals, certificate indicators, and behavioral patterns are clean. Recommend closing as expected activity and adding this subdomain to the per-host allowlist for WKSTN-201.',
+    verdictActions:[{label:'ADD TO ALLOWLIST',cls:'cyan'},{label:'CLOSE — EXPECTED ACTIVITY',cls:'cyan'}]
+  }
+];
+
+let currentFilter = 'all';
+let selectedId = null;
+let aiRunning = false;
+
+function renderAlerts() {
+  const list = document.getElementById('alert-list');
+  const filtered = currentFilter === 'all' ? alerts : alerts.filter(a => a.sev === currentFilter);
+  list.innerHTML = filtered.map(a => `
+    <div class="alert-item sev-${a.sev} ${selectedId===a.id?'selected':''}" onclick="selectAlert('${a.id}')">
+      <div class="alert-item-top">
+        <span class="sev-badge ${a.sev}">${a.sev.toUpperCase()}</span>
+        <span class="alert-name">${a.name}</span>
+      </div>
+      <div class="alert-meta">
+        <span>${a.ts}</span>
+        <span>${a.src_ip}</span>
+      </div>
+      <div class="alert-tags">
+        ${a.mitre.map(m=>`<span class="mitre-tag">${m}</span>`).join('')}
+        <span class="score-tag">Score: ${a.score}</span>
+      </div>
+    </div>
+  `).join('');
+}
+
+function selectAlert(id) {
+  selectedId = id;
+  aiRunning = false;
+  renderAlerts();
+  const a = alerts.find(x => x.id === id);
+  renderDetail(a);
+}
+
+function severityColor(sev) {
+  return sev === 'critical' ? 'var(--red)' : sev === 'high' ? 'var(--amber)' : 'var(--cyan)';
+}
+
+function renderDetail(a) {
+  const sc = severityColor(a.sev);
+  const protColor = (a.protocol.includes('1.1') || a.protocol.includes('1.0')) ? 'red' : '';
+  const bytesColor = (parseFloat(a.bytes) > 100 && a.bytes.includes('MB')) ? 'amber' : '';
+  const devColor = a.device_status.includes('Unmanaged') ? 'red' : a.device_status.includes('Pending') ? 'amber' : 'green';
+  const ja3IsKnownBad = a.ja3.length === 32;
+  const certBad = a.cert_cn === 'SELF-SIGNED';
+  const certWarn = a.cert_issuer.includes('7 days') || a.cert_issuer.includes('14 days') || a.cert_issuer.includes('expired');
+
+  document.getElementById('right-panel').innerHTML = `
+    <div class="detail-header">
+      <div style="flex:1;min-width:0">
+        <div class="detail-title-row">
+          <span class="sev-badge ${a.sev}">${a.sev.toUpperCase()}</span>
+          <span class="detail-title">${a.name}</span>
+        </div>
+        <div class="detail-sub">${a.id} &nbsp;·&nbsp; ${a.ts} UTC &nbsp;·&nbsp; ${a.layer} &nbsp;·&nbsp; Score: <span style="color:${sc};font-family:var(--mono)">${a.score}/100</span></div>
+      </div>
+      <div class="detail-actions">
+        <button class="action-btn">ASSIGN</button>
+        <button class="action-btn">SUPPRESS</button>
+        <button class="action-btn danger">ESCALATE</button>
+      </div>
+    </div>
+    <div class="detail-body">
+      <div>
+        <div class="section-head">Network context</div>
+        <div class="field-grid">
+          <div class="field-box"><div class="field-label">Source IP</div><div class="field-val cyan">${a.src_ip}</div></div>
+          <div class="field-box"><div class="field-label">Destination</div><div class="field-val">${a.dst_ip}</div></div>
+          <div class="field-box"><div class="field-label">Dest Port</div><div class="field-val">${a.dst_port}</div></div>
+          <div class="field-box"><div class="field-label">Protocol</div><div class="field-val ${protColor}">${a.protocol}</div></div>
+          <div class="field-box"><div class="field-label">Bytes Transferred</div><div class="field-val ${bytesColor}">${a.bytes}</div></div>
+          <div class="field-box"><div class="field-label">Duration</div><div class="field-val">${a.duration}</div></div>
+        </div>
+      </div>
+
+      <div>
+        <div class="section-head">TLS / ETA signals</div>
+        <div class="net-flow">
+          <div class="net-row">
+            <span class="net-label">JA3 HASH</span>
+            <span class="net-val" style="color:${ja3IsKnownBad?'var(--red)':'rgba(0,255,136,0.7)'}">${a.ja3}</span>
+            ${ja3IsKnownBad ? '<span class="net-flag bad">THREAT INTEL HIT</span>' : '<span class="net-flag ok">KNOWN GOOD</span>'}
+          </div>
+          <div class="net-row"><span class="net-label">JA3S HASH</span><span class="net-val">${a.ja3s}</span></div>
+          <div class="net-row">
+            <span class="net-label">CERT CN</span>
+            <span class="net-val" style="${certBad?'color:var(--red)':''}">${a.cert_cn}</span>
+            ${certBad ? '<span class="net-flag bad">SELF-SIGNED</span>' : ''}
+          </div>
+          <div class="net-row">
+            <span class="net-label">CERT ISSUER</span>
+            <span class="net-val">${a.cert_issuer}</span>
+            ${certWarn ? '<span class="net-flag warn">SHORT-LIVED</span>' : ''}
+          </div>
+          <div class="net-row"><span class="net-label">CERT SANs</span><span class="net-val">${a.cert_san}</span></div>
+        </div>
+      </div>
+
+      <div>
+        <div class="section-head">Identity &amp; device (ZTA)</div>
+        <div class="field-grid">
+          <div class="field-box" style="grid-column:span 2"><div class="field-label">Authenticated User</div><div class="field-val cyan">${a.user}</div></div>
+          <div class="field-box"><div class="field-label">MITRE ATT&amp;CK</div><div class="field-val" style="font-size:9px;color:var(--purple)">${a.mitre.length ? a.mitre.join(' · ') : '— none mapped'}</div></div>
+          <div class="field-box" style="grid-column:span 2"><div class="field-label">Device</div><div class="field-val">${a.device}</div></div>
+          <div class="field-box"><div class="field-label">Device Status</div><div class="field-val ${devColor}">${a.device_status}</div></div>
+        </div>
+      </div>
+
+      <div class="ai-panel">
+        <div class="ai-header">
+          <span class="ai-icon">◈</span>
+          <span class="ai-title">// CIPHERWATCH AI — INVESTIGATION ENGINE</span>
+          <span class="ai-status" id="ai-status">READY</span>
+        </div>
+        <div class="ai-body" id="ai-body">
+          <button class="ai-start-btn" onclick="runAI('${a.id}')">▶ &nbsp; RUN AI INVESTIGATION</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function runAI(id) {
+  if (aiRunning) return;
+  aiRunning = true;
+  const a = alerts.find(x => x.id === id);
+  const body = document.getElementById('ai-body');
+  const status = document.getElementById('ai-status');
+  status.textContent = 'ANALYZING...';
+  status.className = 'ai-status thinking';
+
+  const verdictIcon = a.verdict === 'malicious' ? '⚑ VERDICT: MALICIOUS' : a.verdict === 'suspicious' ? '⚠ VERDICT: SUSPICIOUS' : '✓ VERDICT: LIKELY BENIGN';
+  body.innerHTML = `
+    <div class="ai-steps" id="ai-steps"></div>
+    <div class="ai-verdict ${a.verdict}" id="ai-verdict" style="display:none">
+      <div class="verdict-label ${a.verdict}">${verdictIcon}</div>
+      <div class="verdict-text">${a.verdictText}</div>
+      <div class="verdict-actions">${a.verdictActions.map(v=>`<span class="verdict-action ${v.cls}">${v.label}</span>`).join('')}</div>
+    </div>`;
+
+  const stepsEl = document.getElementById('ai-steps');
+  a.steps.forEach((step, i) => {
+    const el = document.createElement('div');
+    el.className = 'ai-step';
+    el.innerHTML = `<div class="ai-step-num">0${i+1}</div><div><div class="ai-step-label">${step.label}</div><div class="ai-step-text">${step.text}</div></div>`;
+    stepsEl.appendChild(el);
+  });
+
+  let i = 0;
+  function showNext() {
+    const steps = stepsEl.querySelectorAll('.ai-step');
+    if (i < steps.length) {
+      steps[i].classList.add('visible');
+      i++;
+      setTimeout(showNext, 850 + Math.random() * 350);
+    } else {
+      setTimeout(() => {
+        status.textContent = a.verdict.toUpperCase();
+        status.className = 'ai-status';
+        status.style.color = a.verdict === 'malicious' ? 'var(--red)' : a.verdict === 'suspicious' ? 'var(--amber)' : 'rgba(0,255,136,0.7)';
+        const verdict = document.getElementById('ai-verdict');
+        verdict.style.display = 'block';
+        setTimeout(() => verdict.classList.add('visible'), 60);
+        aiRunning = false;
+      }, 400);
+    }
+  }
+  setTimeout(showNext, 500);
+}
+
+function filterAlerts(f, btn) {
+  currentFilter = f;
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderAlerts();
+}
+
+function updateClock() {
+  const n = new Date();
+  const p = v => String(v).padStart(2,'0');
+  document.getElementById('clock').textContent = `${p(n.getUTCHours())}:${p(n.getUTCMinutes())}:${p(n.getUTCSeconds())} UTC`;
+}
+setInterval(updateClock, 1000);
+updateClock();
+renderAlerts();
+</script>
+</body>
+</html>
